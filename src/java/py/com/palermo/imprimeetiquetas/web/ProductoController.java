@@ -20,13 +20,13 @@ import com.itextpdf.text.pdf.PdfContentByte;
 import com.itextpdf.text.pdf.PdfPCell;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
 import java.text.NumberFormat;
 import java.util.List;
 import java.util.Locale;
 import javax.ejb.EJB;
+import javax.faces.application.FacesMessage;
 import javax.faces.context.FacesContext;
 import javax.faces.view.ViewScoped;
 import javax.inject.Named;
@@ -46,6 +46,18 @@ public class ProductoController implements Serializable {
     private ProductoBean productoBean;
 
     private List<ProductoCantidad> productos;
+    private Locale locale;
+
+    public Locale getLocale() {
+        if (locale == null) {
+            locale = new Locale("es", "py");
+        }
+        return locale;
+    }
+
+    public void setLocale(Locale locale) {
+        this.locale = locale;
+    }
 
     public List<ProductoCantidad> getProductos() {
         if (productos == null) {
@@ -64,75 +76,91 @@ public class ProductoController implements Serializable {
 
     public String createPdf() throws IOException, DocumentException {
 
-        HttpServletResponse response
-                = (HttpServletResponse) FacesContext.getCurrentInstance()
-                .getExternalContext().getResponse();
-        response.setContentType("application/x-pdf");
-        response.setHeader("Content-Disposition", "attachment; filename=\"etiquetas.pdf\"");
+        if (hayParaImprimir()) {
 
-        // step 1
-        Document document = new Document(new Rectangle(86, 35));
-        // step 2
+            HttpServletResponse response
+                    = (HttpServletResponse) FacesContext.getCurrentInstance()
+                    .getExternalContext().getResponse();
+            response.setContentType("application/x-pdf");
+            response.setHeader("Content-Disposition", "attachment; filename=\"etiquetas.pdf\"");
 
-        document.setMargins(0f, 0f, 0f, 0f);
+            // step 1
+            Document document = new Document(new Rectangle(86, 35));
+            // step 2
 
-        PdfWriter writer = PdfWriter.getInstance(document, response.getOutputStream());
-        // step 3
-        document.open();
+            document.setMargins(0f, 0f, 0f, 0f);
 
-        // step 4
-        PdfContentByte cb = writer.getDirectContent();
+            PdfWriter writer = PdfWriter.getInstance(document, response.getOutputStream());
+            // step 3
+            document.open();
 
-        for (ProductoCantidad p : productos) {
-            if (p.getCantidad() > 0) {
+            // step 4
+            PdfContentByte cb = writer.getDirectContent();
 
-                BarcodeEAN codeEAN = new BarcodeEAN();
-                codeEAN.setCode(p.getCodigo());
-                codeEAN.setCodeType(Barcode.EAN13);
-                codeEAN.setBarHeight(10f);
-                codeEAN.setX(0.7f);
-                codeEAN.setSize(4f);
+            for (ProductoCantidad p : productos) {
+                if (p.getCantidad() > 0) {
 
-                NumberFormat nf = NumberFormat.getCurrencyInstance(new Locale("es", "py"));
-                Font fontbold = FontFactory.getFont("Times-Roman", 5, Font.NORMAL);
-                Chunk productTitle = new Chunk(p.getNombre() + "," + " " + nf.format(p.getPrecio()), fontbold);
+                    BarcodeEAN codeEAN = new BarcodeEAN();
+                    codeEAN.setCode(p.getCodigo());
+                    codeEAN.setCodeType(Barcode.EAN13);
+                    codeEAN.setBarHeight(10f);
+                    codeEAN.setX(0.7f);
+                    codeEAN.setSize(4f);
 
-                // EAN 13
-                Paragraph pTitile = new Paragraph(productTitle);
-                pTitile.setAlignment(Element.ALIGN_CENTER);
-                pTitile.setLeading(0, 1);
+                    NumberFormat nf = NumberFormat.getCurrencyInstance(new Locale("es", "py"));
+                    Font fontbold = FontFactory.getFont("Times-Roman", 5, Font.NORMAL);
+                    Chunk productTitle = new Chunk(p.getNombre() + "," + " " + nf.format(p.getPrecio()), fontbold);
 
-                PdfPTable table = new PdfPTable(1);
-                table.setPaddingTop(0f);
+                    // EAN 13
+                    Paragraph pTitile = new Paragraph(productTitle);
+                    pTitile.setAlignment(Element.ALIGN_CENTER);
+                    pTitile.setLeading(0, 1);
 
-                table.setWidthPercentage(96);
-                PdfPCell cell = new PdfPCell();
-                cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-                cell.setBorder(Rectangle.NO_BORDER);
-                cell.addElement(codeEAN.createImageWithBarcode(cb, null, BaseColor.BLACK));
+                    PdfPTable table = new PdfPTable(1);
+                    table.setPaddingTop(0f);
 
-                table.addCell(cell);
+                    table.setWidthPercentage(96);
+                    PdfPCell cell = new PdfPCell();
+                    cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+                    cell.setBorder(Rectangle.NO_BORDER);
+                    cell.addElement(codeEAN.createImageWithBarcode(cb, null, BaseColor.BLACK));
 
-                PdfPCell cell2 = new PdfPCell();
-                cell2.setHorizontalAlignment(Element.ALIGN_CENTER);
-                cell2.setBorder(Rectangle.NO_BORDER);
-                cell2.addElement(pTitile);
+                    table.addCell(cell);
 
-                table.addCell(cell2);
+                    PdfPCell cell2 = new PdfPCell();
+                    cell2.setHorizontalAlignment(Element.ALIGN_CENTER);
+                    cell2.setBorder(Rectangle.NO_BORDER);
+                    cell2.addElement(pTitile);
 
-                for (int i = 0; i < p.getCantidad(); i++) {
-                    document.add(table);
-                    document.newPage();
+                    table.addCell(cell2);
+
+                    for (int i = 0; i < p.getCantidad(); i++) {
+                        document.add(table);
+                        document.newPage();
+                    }
                 }
             }
+
+            // step 5
+            document.close();
+
+            response.getOutputStream().flush();
+            response.getOutputStream().close();
+            FacesContext.getCurrentInstance().responseComplete();
+        } else {
+            FacesContext.getCurrentInstance().addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR, "No hay nada que imprimir", ""));
         }
-
-        // step 5
-        document.close();
-
-        response.getOutputStream().flush();
-        response.getOutputStream().close();
-        FacesContext.getCurrentInstance().responseComplete();
         return null;
+    }
+
+    private boolean hayParaImprimir() {
+        boolean R = false;
+        for (ProductoCantidad p : productos) {
+            if (p.getCantidad() > 0) {
+                R = true;
+                break;
+            }
+        }
+        return R;
     }
 }

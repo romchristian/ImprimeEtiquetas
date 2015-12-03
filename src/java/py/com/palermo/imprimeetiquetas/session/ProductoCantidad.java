@@ -18,6 +18,9 @@ public class ProductoCantidad {
     private BigDecimal precio;
     private int cantidad;
 
+    public ProductoCantidad() {
+    }
+
     public ProductoCantidad(Object[] obj) {
         this.nombre = (String) obj[0];
         this.codigo = (String) obj[1];
